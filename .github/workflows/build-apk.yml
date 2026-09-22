@@ -1,0 +1,54 @@
+﻿name: Build APK
+on: [push, workflow_dispatch]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git zip unzip openjdk-17-jdk autoconf libtool pkg-config zlib1g-dev libncurses5-dev libncursesw5-dev libtinfo6 cmake libffi-dev libssl-dev automake autopoint gettext
+
+      - name: Install buildozer
+        run: |
+          pip install buildozer cython==0.29.34
+
+      - name: Write buildozer.spec
+        run: |
+          cat > buildozer.spec << 'EOF'
+          [app]
+          title = Jareth Adventure
+          package.name = jarethadventure
+          package.domain = org.rsociety
+          source.dir = .
+          source.include_exts = py,png,jpg,kv,atlas
+          version = 1.0
+          requirements = python3,kivy,jnius
+          orientation = portrait
+          fullscreen = 1
+          android.permissions =
+          android.api = 33
+          android.minapi = 24
+          android.ndk = 25b
+          android.sdk = 33
+          android.accept_sdk_license = True
+          android.archs = arm64-v8a, armeabi-v7a
+          p4a.branch = master
+          EOF
+
+      - name: Build APK
+        run: |
+          yes | buildozer -v android debug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: jareth-apk
+          path: bin/*.apk
