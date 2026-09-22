@@ -2,7 +2,6 @@
 # language: Python 3.13+, file: main.py, framework: Kivy 2.3+
 # flappy bird — "Jareth Adventure"
 # intro + START · pausa · salto por toque · video a los 10 puntos · fondo rojo
-# en Android usa el reproductor nativo, en Windows usa VideoScreen de Kivy
 
 import os
 import random
@@ -16,19 +15,12 @@ from kivy.core.window import Window
 from kivy.clock import Clock
 from kivy.graphics import Color, Rectangle
 from kivy.properties import NumericProperty, ObjectProperty
-from kivy.utils import platform
 
 try:
     from kivy.uix.video import Video
     VIDEO_OK = True
 except Exception:
     VIDEO_OK = False
-
-try:
-    from video_android import play_video_android
-except Exception:
-    def play_video_android(path, on_finish=None):
-        return False
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 ASSETS = os.path.join(BASE, 'assets')
@@ -98,7 +90,7 @@ class IntroScreen(FloatLayout):
 
 
 # ══════════════════════════════════════════════════════════════════
-#  VIDEO SCREEN — solo para Windows / desktop
+#  VIDEO SCREEN — aparece al llegar a 10 puntos
 # ══════════════════════════════════════════════════════════════════
 class VideoScreen(FloatLayout):
     def __init__(self, on_finish, **kw):
@@ -120,8 +112,9 @@ class VideoScreen(FloatLayout):
             self.video.bind(eos=self._video_ended)
             Clock.schedule_once(self._layout_video, 0)
         else:
-            self.add_widget(Label(text='[no se pudo cargar el video]',
-                                  font_size='24sp', color=(1, 1, 1, 1)))
+            lbl = Label(text='[no se pudo cargar el video]',
+                        font_size='24sp', color=(1, 1, 1, 1))
+            self.add_widget(lbl)
             Clock.schedule_once(lambda dt: self.on_finish(), 2.0)
 
         skip = Button(text='SALTAR',
@@ -463,13 +456,6 @@ class JarethApp(App):
         self.root_widget.add_widget(self.game)
 
     def _show_video(self):
-        # Android: reproductor nativo
-        if platform == 'android':
-            if play_video_android(VIDEO_PATH, on_finish=self._video_done):
-                return
-            # si falla, cae al VideoScreen de Kivy
-
-        # Windows / Linux / Mac: VideoScreen de Kivy
         if self.video_screen is not None:
             return
         self.video_screen = VideoScreen(on_finish=self._video_done)

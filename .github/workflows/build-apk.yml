@@ -28,7 +28,7 @@ jobs:
           package.name = jarethadventure
           package.domain = org.rsociety
           source.dir = .
-          source.include_exts = py,png,jpg,kv,atlas
+          source.include_exts = py,png,jpg,kv,atlas,mp4
           version = 1.0
           requirements = python3,kivy,jnius
           orientation = portrait
