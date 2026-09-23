@@ -63,7 +63,7 @@ jobs:
           source.exclude_patterns = buildozer.spec,*.pyc,__pycache__,runfull*.txt,error*.txt,resumen.txt,runlog.txt
           version = 1.0
           requirements = python3,kivy,jnius
-          orientation = all
+          orientation = portrait,landscape
           fullscreen = 1
           android.permissions =
           android.api = 33
