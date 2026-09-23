@@ -1,10 +1,9 @@
-
-# language: Python 3.13+, file: main.py, framework: Kivy 2.3+
-# flappy bird — "Jareth Adventure"
-# intro + START · pausa · salto por toque · video a los 10 puntos · fondo rojo
-# en Android usa el reproductor nativo, en Windows usa VideoScreen de Kivy
+# language: Python 3.13+, file: Game.py
+# Jareth Adventure — Flappy Bird
+# intro + START + VER VIDEO · pausa · video a los 10 puntos · optimizado A15
 
 import os
+import sys
 import random
 from kivy.app import App
 from kivy.uix.floatlayout import FloatLayout
@@ -30,23 +29,34 @@ except Exception:
     def play_video_android(path, on_finish=None):
         return False
 
-BASE = os.path.dirname(os.path.abspath(__file__))
+
+# ── rutas: script y .exe ──
+if getattr(sys, 'frozen', False):
+    _external = os.path.join(os.path.dirname(sys.executable), 'assets')
+    if os.path.isdir(_external):
+        BASE = os.path.dirname(sys.executable)
+    else:
+        BASE = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
+else:
+    BASE = os.path.dirname(os.path.abspath(__file__))
+
 ASSETS = os.path.join(BASE, 'assets')
 BIRD_IMG = os.path.join(ASSETS, 'bird.png')
 PIPE_IMG = os.path.join(ASSETS, 'pipe.png')
 VIDEO_PATH = os.path.join(ASSETS, 'Jareth.mp4')
 
+
+# ── ajustes para Samsung A15 (1080x2340, 6.5", densidad 3x) ──
 GRAVITY = -0.6
 JUMP = 9.0
-PIPE_GAP = 240
+PIPE_GAP = 200
 PIPE_SPEED = -4
-PIPE_SPACING = 280
+PIPE_SPACING = 380          # ← antes 260: tubos más separados
+PIPE_WIDTH = 70
 GROUND_H = 80
-
-BIRD_DRAW_SIZE = (140, 140)
-BIRD_HIT_W = 70
-BIRD_HIT_H = 70
-
+BIRD_DRAW_SIZE = (120, 120)
+BIRD_HIT_W = 60
+BIRD_HIT_H = 60
 VIDEO_TRIGGER_SCORE = 10
 
 
@@ -54,9 +64,10 @@ VIDEO_TRIGGER_SCORE = 10
 #  INTRO
 # ══════════════════════════════════════════════════════════════════
 class IntroScreen(FloatLayout):
-    def __init__(self, on_start, **kw):
+    def __init__(self, on_start, on_video, **kw):
         super().__init__(**kw)
         self.on_start = on_start
+        self.on_video = on_video
 
         with self.canvas.before:
             Color(0.85, 0.1, 0.1, 1)
@@ -69,7 +80,7 @@ class IntroScreen(FloatLayout):
                               outline_color=(0, 0, 0, 1), outline_width=4,
                               size_hint=(None, None),
                               size=(400, 100),
-                              pos_hint={'center_x': 0.5, 'center_y': 0.68}))
+                              pos_hint={'center_x': 0.5, 'center_y': 0.75}))
 
         self.add_widget(Label(text='ADVENTURE',
                               font_size='40sp', bold=True,
@@ -77,17 +88,27 @@ class IntroScreen(FloatLayout):
                               outline_color=(0, 0, 0, 1), outline_width=4,
                               size_hint=(None, None),
                               size=(400, 80),
-                              pos_hint={'center_x': 0.5, 'center_y': 0.55}))
+                              pos_hint={'center_x': 0.5, 'center_y': 0.63}))
 
-        boton = Button(text='START',
-                       font_size='32sp', bold=True,
-                       background_color=(0, 0.7, 0, 1),
-                       color=(1, 1, 1, 1),
-                       size_hint=(None, None),
-                       size=(220, 80),
-                       pos_hint={'center_x': 0.5, 'center_y': 0.35})
-        boton.bind(on_press=self._start)
-        self.add_widget(boton)
+        boton_start = Button(text='START',
+                             font_size='32sp', bold=True,
+                             background_color=(0, 0.7, 0, 1),
+                             color=(1, 1, 1, 1),
+                             size_hint=(None, None),
+                             size=(220, 80),
+                             pos_hint={'center_x': 0.5, 'center_y': 0.42})
+        boton_start.bind(on_press=self._start)
+        self.add_widget(boton_start)
+
+        boton_video = Button(text='VER VIDEO',
+                             font_size='24sp', bold=True,
+                             background_color=(0.2, 0.2, 0.7, 1),
+                             color=(1, 1, 1, 1),
+                             size_hint=(None, None),
+                             size=(220, 70),
+                             pos_hint={'center_x': 0.5, 'center_y': 0.28})
+        boton_video.bind(on_press=self._video)
+        self.add_widget(boton_video)
 
     def _update_bg(self, *a):
         self.bg.pos = self.pos
@@ -96,9 +117,12 @@ class IntroScreen(FloatLayout):
     def _start(self, *a):
         self.on_start()
 
+    def _video(self, *a):
+        self.on_video()
+
 
 # ══════════════════════════════════════════════════════════════════
-#  VIDEO SCREEN — solo para Windows / desktop
+#  VIDEO SCREEN
 # ══════════════════════════════════════════════════════════════════
 class VideoScreen(FloatLayout):
     def __init__(self, on_finish, **kw):
@@ -114,8 +138,7 @@ class VideoScreen(FloatLayout):
             self.video = Video(source=VIDEO_PATH,
                                state='play',
                                options={'eos': 'stop'},
-                               size_hint=(None, None),
-                               allow_stretch=True)
+                               size_hint=(None, None))
             self.add_widget(self.video)
             self.video.bind(eos=self._video_ended)
             Clock.schedule_once(self._layout_video, 0)
@@ -163,10 +186,7 @@ class Bird(Widget):
         self._visual = Image(source=BIRD_IMG,
                              size_hint=(None, None),
                              size=BIRD_DRAW_SIZE,
-                             pos=self.pos,
-                             allow_stretch=True,
-                             keep_ratio=True,
-                             mipmap=True)
+                             pos=self.pos)
         self._visual.disabled = True
         self.add_widget(self._visual)
         self.bind(pos=self._sync_visual, size=self._sync_visual)
@@ -207,7 +227,7 @@ class PipePair(FloatLayout):
     def __init__(self, x, gap_y, **kw):
         super().__init__(**kw)
         self.size_hint = (None, None)
-        self.size = (80, Window.height)
+        self.size = (PIPE_WIDTH, Window.height)
         self.pos = (x, 0)
         self.disabled = True
 
@@ -216,20 +236,14 @@ class PipePair(FloatLayout):
 
         self.top_pipe = Image(source=PIPE_IMG,
                               pos=(x, gap_top),
-                              size=(80, Window.height - gap_top),
-                              size_hint=(None, None),
-                              mipmap=True)
-        self.top_pipe.allow_stretch = True
-        self.top_pipe.keep_ratio = False
+                              size=(PIPE_WIDTH, Window.height - gap_top),
+                              size_hint=(None, None))
         self.top_pipe.disabled = True
 
         self.bottom_pipe = Image(source=PIPE_IMG,
                                  pos=(x, 0),
-                                 size=(80, gap_bottom),
-                                 size_hint=(None, None),
-                                 mipmap=True)
-        self.bottom_pipe.allow_stretch = True
-        self.bottom_pipe.keep_ratio = False
+                                 size=(PIPE_WIDTH, gap_bottom),
+                                 size_hint=(None, None))
         self.bottom_pipe.disabled = True
 
     def move(self, dx):
@@ -326,7 +340,7 @@ class FlappyGame(FloatLayout):
     def _layout(self, dt=0):
         h = Window.height
         w = Window.width
-        self.bird.pos = (80, h / 2 - BIRD_DRAW_SIZE[1] / 2)
+        self.bird.pos = (60, h / 2 - BIRD_DRAW_SIZE[1] / 2)
         self.score_label.pos = (w / 2 - 100, h - 100)
         self.hint.pos = (w / 2 - 200, h / 2 - 150)
         self.pause_btn.pos = (w - 130, h - 80)
@@ -451,7 +465,11 @@ class JarethApp(App):
             self.game.cleanup()
             self.root_widget.remove_widget(self.game)
             self.game = None
-        self.intro = IntroScreen(on_start=self._start_game)
+        if self.video_screen is not None:
+            self.root_widget.remove_widget(self.video_screen)
+            self.video_screen = None
+        self.intro = IntroScreen(on_start=self._start_game,
+                                 on_video=self._show_video)
         self.root_widget.add_widget(self.intro)
 
     def _start_game(self):
@@ -463,13 +481,10 @@ class JarethApp(App):
         self.root_widget.add_widget(self.game)
 
     def _show_video(self):
-        # Android: reproductor nativo
         if platform == 'android':
             if play_video_android(VIDEO_PATH, on_finish=self._video_done):
                 return
-            # si falla, cae al VideoScreen de Kivy
 
-        # Windows / Linux / Mac: VideoScreen de Kivy
         if self.video_screen is not None:
             return
         self.video_screen = VideoScreen(on_finish=self._video_done)
