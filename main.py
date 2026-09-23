@@ -1,4 +1,4 @@
-# language: Python 3.13+, file: Game.py
+# language: Python 3.13+, file: main.py
 # Jareth Adventure — Flappy Bird
 # intro + START + VER VIDEO · pausa · video a los 10 puntos · optimizado A15
 
@@ -16,6 +16,7 @@ from kivy.clock import Clock
 from kivy.graphics import Color, Rectangle
 from kivy.properties import NumericProperty, ObjectProperty
 from kivy.utils import platform
+from kivy.resources import resource_find
 
 try:
     from kivy.uix.video import Video
@@ -30,28 +31,44 @@ except Exception:
         return False
 
 
-# ── rutas: script y .exe ──
-if getattr(sys, 'frozen', False):
-    _external = os.path.join(os.path.dirname(sys.executable), 'assets')
-    if os.path.isdir(_external):
-        BASE = os.path.dirname(sys.executable)
+# ── rutas: script, .exe y APK Android ──
+def _find_asset(name):
+    """Busca un asset en assets/ o en el bundle de Android."""
+    if getattr(sys, 'frozen', False):
+        _external = os.path.join(os.path.dirname(sys.executable), 'assets')
+        if os.path.isdir(_external):
+            BASE = os.path.dirname(sys.executable)
+        else:
+            BASE = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
     else:
-        BASE = getattr(sys, '_MEIPASS', os.path.dirname(sys.executable))
-else:
-    BASE = os.path.dirname(os.path.abspath(__file__))
+        BASE = os.path.dirname(os.path.abspath(__file__))
 
-ASSETS = os.path.join(BASE, 'assets')
-BIRD_IMG = os.path.join(ASSETS, 'bird.png')
-PIPE_IMG = os.path.join(ASSETS, 'pipe.png')
-VIDEO_PATH = os.path.join(ASSETS, 'Jareth.mp4')
+    direct = os.path.join(BASE, 'assets', name)
+    if os.path.exists(direct):
+        return direct
+
+    found = resource_find(os.path.join('assets', name))
+    if found:
+        return found
+
+    found = resource_find(name)
+    if found:
+        return found
+
+    return direct
+
+
+BIRD_IMG = _find_asset('bird.png')
+PIPE_IMG = _find_asset('pipe.png')
+VIDEO_PATH = _find_asset('Jareth.mp4')
 
 
 # ── ajustes para Samsung A15 (1080x2340, 6.5", densidad 3x) ──
 GRAVITY = -0.6
 JUMP = 9.0
-PIPE_GAP = 200
+PIPE_GAP = 220
 PIPE_SPEED = -4
-PIPE_SPACING = 400          # ← tubos más separados
+PIPE_SPACING = 400
 PIPE_WIDTH = 70
 GROUND_H = 80
 BIRD_DRAW_SIZE = (120, 120)
@@ -128,6 +145,7 @@ class VideoScreen(FloatLayout):
     def __init__(self, on_finish, **kw):
         super().__init__(**kw)
         self.on_finish = on_finish
+        self._finished = False
 
         with self.canvas.before:
             Color(0, 0, 0, 1)
@@ -135,17 +153,20 @@ class VideoScreen(FloatLayout):
         self.bind(pos=self._update_bg, size=self._update_bg)
 
         if VIDEO_OK and os.path.exists(VIDEO_PATH):
-            self.video = Video(source=VIDEO_PATH,
-                               state='play',
-                               options={'eos': 'stop'},
-                               size_hint=(None, None))
-            self.add_widget(self.video)
-            self.video.bind(eos=self._video_ended)
-            Clock.schedule_once(self._layout_video, 0)
+            try:
+                self.video = Video(source=VIDEO_PATH,
+                                   state='play',
+                                   options={'eos': 'stop'},
+                                   size_hint=(None, None))
+                self.add_widget(self.video)
+                self.video.bind(eos=self._video_ended)
+                Clock.schedule_once(self._check_playing, 6.0)
+                Clock.schedule_once(self._layout_video, 0)
+            except Exception as e:
+                print("[VideoScreen] error:", e)
+                self._show_message()
         else:
-            self.add_widget(Label(text='[no se pudo cargar el video]',
-                                  font_size='24sp', color=(1, 1, 1, 1)))
-            Clock.schedule_once(lambda dt: self.on_finish(), 2.0)
+            self._show_message()
 
         skip = Button(text='SALTAR',
                       font_size='20sp', bold=True,
@@ -153,10 +174,22 @@ class VideoScreen(FloatLayout):
                       color=(1, 1, 1, 1),
                       size_hint=(None, None),
                       size=(120, 50))
-        skip.bind(on_press=lambda *a: self.on_finish())
+        skip.bind(on_press=lambda *a: self._finish_once())
         self.add_widget(skip)
         Clock.schedule_once(lambda dt: setattr(
             skip, 'pos', (Window.width - 140, 20)), 0)
+
+    def _show_message(self):
+        self.add_widget(Label(text='[video no disponible]',
+                              font_size='24sp', color=(1, 1, 1, 1)))
+        Clock.schedule_once(lambda dt: self._finish_once(), 2.0)
+
+    def _check_playing(self, dt):
+        try:
+            if hasattr(self, 'video') and self.video.state != 'play':
+                self._finish_once()
+        except Exception:
+            self._finish_once()
 
     def _update_bg(self, *a):
         self.bg.pos = self.pos
@@ -168,6 +201,12 @@ class VideoScreen(FloatLayout):
             self.video.size = (Window.width, Window.height)
 
     def _video_ended(self, *a):
+        self._finish_once()
+
+    def _finish_once(self):
+        if self._finished:
+            return
+        self._finished = True
         self.on_finish()
 
 
@@ -482,8 +521,12 @@ class JarethApp(App):
 
     def _show_video(self):
         if platform == 'android':
-            if play_video_android(VIDEO_PATH, on_finish=self._video_done):
-                return
+            try:
+                ok = play_video_android(VIDEO_PATH, on_finish=self._video_done)
+                if ok:
+                    return
+            except Exception as e:
+                print("[Android video] error:", e)
 
         if self.video_screen is not None:
             return
