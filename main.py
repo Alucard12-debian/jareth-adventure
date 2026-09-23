@@ -17,6 +17,7 @@ from kivy.graphics import Color, Rectangle
 from kivy.properties import NumericProperty, ObjectProperty
 from kivy.utils import platform
 from kivy.resources import resource_find
+from kivy.metrics import dp
 
 try:
     from kivy.uix.video import Video
@@ -33,7 +34,6 @@ except Exception:
 
 # ── rutas: script, .exe y APK Android ──
 def _find_asset(name):
-    """Busca un asset en assets/ o en el bundle de Android."""
     if getattr(sys, 'frozen', False):
         _external = os.path.join(os.path.dirname(sys.executable), 'assets')
         if os.path.isdir(_external):
@@ -46,15 +46,12 @@ def _find_asset(name):
     direct = os.path.join(BASE, 'assets', name)
     if os.path.exists(direct):
         return direct
-
     found = resource_find(os.path.join('assets', name))
     if found:
         return found
-
     found = resource_find(name)
     if found:
         return found
-
     return direct
 
 
@@ -63,17 +60,18 @@ PIPE_IMG = _find_asset('pipe.png')
 VIDEO_PATH = _find_asset('Jareth.mp4')
 
 
-# ── ajustes para Samsung A15 (1080x2340, 6.5", densidad 3x) ──
+# ══════════════════════════════════════════════════════════════════
+#  AJUSTES (en dp = independiente de la resolución)
+# ══════════════════════════════════════════════════════════════════
 GRAVITY = -0.6
 JUMP = 9.0
-PIPE_GAP = 220
+
+PIPE_GAP = dp(260)          # hueco vertical entre tubos
 PIPE_SPEED = -4
-PIPE_SPACING = 400
-PIPE_WIDTH = 70
-GROUND_H = 80
-BIRD_DRAW_SIZE = (120, 120)
-BIRD_HIT_W = 60
-BIRD_HIT_H = 60
+PIPE_SPACING = dp(600)      # ← separación horizontal entre pares (más separados)
+PIPE_WIDTH = dp(260)        # ← ancho del tubo (para que el pene se vea bien)
+GROUND_H = dp(80)
+BIRD_DRAW_SIZE = (dp(90), dp(90))
 VIDEO_TRIGGER_SCORE = 10
 
 
@@ -96,7 +94,7 @@ class IntroScreen(FloatLayout):
                               color=(1, 1, 1, 1),
                               outline_color=(0, 0, 0, 1), outline_width=4,
                               size_hint=(None, None),
-                              size=(400, 100),
+                              size=(dp(400), dp(100)),
                               pos_hint={'center_x': 0.5, 'center_y': 0.75}))
 
         self.add_widget(Label(text='ADVENTURE',
@@ -104,7 +102,7 @@ class IntroScreen(FloatLayout):
                               color=(1, 1, 0.2, 1),
                               outline_color=(0, 0, 0, 1), outline_width=4,
                               size_hint=(None, None),
-                              size=(400, 80),
+                              size=(dp(400), dp(80)),
                               pos_hint={'center_x': 0.5, 'center_y': 0.63}))
 
         boton_start = Button(text='START',
@@ -112,7 +110,7 @@ class IntroScreen(FloatLayout):
                              background_color=(0, 0.7, 0, 1),
                              color=(1, 1, 1, 1),
                              size_hint=(None, None),
-                             size=(220, 80),
+                             size=(dp(220), dp(80)),
                              pos_hint={'center_x': 0.5, 'center_y': 0.42})
         boton_start.bind(on_press=self._start)
         self.add_widget(boton_start)
@@ -122,7 +120,7 @@ class IntroScreen(FloatLayout):
                              background_color=(0.2, 0.2, 0.7, 1),
                              color=(1, 1, 1, 1),
                              size_hint=(None, None),
-                             size=(220, 70),
+                             size=(dp(220), dp(70)),
                              pos_hint={'center_x': 0.5, 'center_y': 0.28})
         boton_video.bind(on_press=self._video)
         self.add_widget(boton_video)
@@ -173,11 +171,11 @@ class VideoScreen(FloatLayout):
                       background_color=(0, 0, 0, 0.6),
                       color=(1, 1, 1, 1),
                       size_hint=(None, None),
-                      size=(120, 50))
+                      size=(dp(120), dp(50)))
         skip.bind(on_press=lambda *a: self._finish_once())
         self.add_widget(skip)
         Clock.schedule_once(lambda dt: setattr(
-            skip, 'pos', (Window.width - 140, 20)), 0)
+            skip, 'pos', (Window.width - dp(140), dp(20))), 0)
 
     def _show_message(self):
         self.add_widget(Label(text='[video no disponible]',
@@ -244,12 +242,7 @@ class Bird(Widget):
         return False
 
     def hitbox_rect(self):
-        cx = self.x + self.width / 2
-        cy = self.y + self.height / 2
-        return (cx - BIRD_HIT_W / 2,
-                cy - BIRD_HIT_H / 2,
-                BIRD_HIT_W,
-                BIRD_HIT_H)
+        return (self.x, self.y, self.width, self.height)
 
     def jump(self):
         self.velocity_y = JUMP
@@ -276,13 +269,17 @@ class PipePair(FloatLayout):
         self.top_pipe = Image(source=PIPE_IMG,
                               pos=(x, gap_top),
                               size=(PIPE_WIDTH, Window.height - gap_top),
-                              size_hint=(None, None))
+                              size_hint=(None, None),
+                              allow_stretch=True,
+                              keep_ratio=False)
         self.top_pipe.disabled = True
 
         self.bottom_pipe = Image(source=PIPE_IMG,
                                  pos=(x, 0),
                                  size=(PIPE_WIDTH, gap_bottom),
-                                 size_hint=(None, None))
+                                 size_hint=(None, None),
+                                 allow_stretch=True,
+                                 keep_ratio=False)
         self.bottom_pipe.disabled = True
 
     def move(self, dx):
@@ -335,7 +332,7 @@ class FlappyGame(FloatLayout):
                                  color=(1, 1, 1, 1),
                                  outline_color=(0, 0, 0, 1), outline_width=3,
                                  size_hint=(None, None),
-                                 size=(200, 80))
+                                 size=(dp(200), dp(80)))
         self.score_label.disabled = True
         self.add_widget(self.score_label)
 
@@ -344,7 +341,7 @@ class FlappyGame(FloatLayout):
                           color=(1, 1, 1, 1),
                           outline_color=(0, 0, 0, 1), outline_width=3,
                           size_hint=(None, None),
-                          size=(400, 60))
+                          size=(dp(400), dp(60)))
         self.hint.disabled = True
         self.add_widget(self.hint)
 
@@ -353,7 +350,7 @@ class FlappyGame(FloatLayout):
                                 background_color=(0, 0, 0, 0.6),
                                 color=(1, 1, 1, 1),
                                 size_hint=(None, None),
-                                size=(110, 55))
+                                size=(dp(110), dp(55)))
         self.pause_btn.bind(on_press=self._toggle_pause)
         self.add_widget(self.pause_btn)
 
@@ -362,13 +359,10 @@ class FlappyGame(FloatLayout):
                                    color=(1, 1, 1, 1),
                                    outline_color=(0, 0, 0, 1), outline_width=4,
                                    size_hint=(None, None),
-                                   size=(400, 100),
+                                   size=(dp(400), dp(100)),
                                    opacity=0)
         self.pause_overlay.disabled = True
         self.add_widget(self.pause_overlay)
-
-        self.remove_widget(self.pause_btn)
-        self.add_widget(self.pause_btn)
 
         self.pipes = []
         self.pipe_spacing_counter = 0
@@ -376,14 +370,19 @@ class FlappyGame(FloatLayout):
         Clock.schedule_once(self._layout, 0)
         self.clock = Clock.schedule_interval(self.update, 1 / 60)
 
+        Window.bind(on_resize=self._on_resize)
+
+    def _on_resize(self, *a):
+        self._layout()
+
     def _layout(self, dt=0):
         h = Window.height
         w = Window.width
-        self.bird.pos = (60, h / 2 - BIRD_DRAW_SIZE[1] / 2)
-        self.score_label.pos = (w / 2 - 100, h - 100)
-        self.hint.pos = (w / 2 - 200, h / 2 - 150)
-        self.pause_btn.pos = (w - 130, h - 80)
-        self.pause_overlay.pos = (w / 2 - 200, h / 2 - 50)
+        self.bird.pos = (dp(60), h / 2 - BIRD_DRAW_SIZE[1] / 2)
+        self.score_label.pos = (w / 2 - dp(100), h - dp(100))
+        self.hint.pos = (w / 2 - dp(200), h / 2 - dp(150))
+        self.pause_btn.pos = (w - dp(130), h - dp(80))
+        self.pause_overlay.pos = (w / 2 - dp(200), h / 2 - dp(50))
 
     def _update_bg(self, *a):
         self.bg.pos = self.pos
@@ -421,8 +420,8 @@ class FlappyGame(FloatLayout):
 
     def spawn_pipe(self):
         h = Window.height
-        gap_y = random.randint(int(GROUND_H + PIPE_GAP / 2 + 40),
-                               int(h - PIPE_GAP / 2 - 40))
+        gap_y = random.randint(int(GROUND_H + PIPE_GAP / 2 + dp(40)),
+                               int(h - PIPE_GAP / 2 - dp(40)))
         p = PipePair(Window.width, gap_y)
         self.pipes.append(p)
         self.add_widget(p.top_pipe)

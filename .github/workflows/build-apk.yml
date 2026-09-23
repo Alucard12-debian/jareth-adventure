@@ -63,7 +63,7 @@ jobs:
           source.exclude_patterns = buildozer.spec,*.pyc,__pycache__,runfull*.txt,error*.txt,resumen.txt,runlog.txt
           version = 1.0
           requirements = python3,kivy,jnius
-          orientation = portrait
+          orientation = all
           fullscreen = 1
           android.permissions =
           android.api = 33
@@ -75,7 +75,7 @@ jobs:
           p4a.branch = v2024.01.21
           p4a.fork = kivy
           android.log_level = 2
-          android.gradle_dependencies = 
+          android.gradle_dependencies =
           android.enable_androidx = True
           android.gradle_options = -Xmx2048m -Dfile.encoding=UTF-8
           EOF
